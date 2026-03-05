@@ -294,11 +294,11 @@ export default function Home() {
     loadErrors(code);
 
     setLoadingSeo(true);
-    fetch(`/api/seo-inputs?scanCode=${encodeURIComponent(code)}`)
-      .then(r => r.json())
-      .then(data => setSeoInputs(Array.isArray(data) ? data : []))
-      .catch(console.error)
-      .finally(() => setLoadingSeo(false));
+    // fetch(`/api/seo-inputs?scanCode=${encodeURIComponent(code)}`)
+    //   .then(r => r.json())
+    //   .then(data => setSeoInputs(Array.isArray(data) ? data : []))
+    //   .catch(console.error)
+    //   .finally(() => setLoadingSeo(false));
   }
 
   // Filter change handlers
