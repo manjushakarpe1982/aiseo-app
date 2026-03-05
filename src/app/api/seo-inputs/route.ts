@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, sql } from '@/lib/db';
- 
+
 export async function GET(req: NextRequest) {
   const scanCode = req.nextUrl.searchParams.get('scanCode');
   if (!scanCode) {
     return NextResponse.json({ error: 'scanCode is required' }, { status: 400 });
   }
- 
+
   try {
     const db = await getDb();
     const result = await db.request()

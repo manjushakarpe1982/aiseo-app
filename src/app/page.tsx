@@ -5,7 +5,7 @@ import type { CannibalizationError, CannibalizationFix, PageSEOInput } from '@/l
 
 type Tab = 'cannibalization' | 'seo';
 const PAGE_SIZE = 10;
-//
+
 // ─── UI Helpers ───────────────────────────────────────────────────
 
 function PriorityBadge({ priority }: { priority: number | null }) {
