@@ -357,9 +357,10 @@ export default function Home() {
   const [fixes, setFixes]                   = useState<CannibalizationFix[]>([]);
   const [loadingFixes, setLoadingFixes]     = useState(false);
 
-  // Processed By / Status state for errors table
+  // Processed By / Status / Comments state for errors table
   const [processedByMap, setProcessedByMap] = useState<Record<number, string>>({});
   const [statusMap, setStatusMap]           = useState<Record<number, string>>({});
+  const [commentsMap, setCommentsMap]       = useState<Record<number, string>>({});
   const [processedByErrId, setProcessedByErrId] = useState<number | null>(null);
 
   // SEO
@@ -369,9 +370,10 @@ export default function Home() {
   const [seoPage, setSeoPage]               = useState(1);
   const [modalSeoPage, setModalSeoPage]     = useState<PageSEOInput | null>(null);
 
-  // SEO Processed By / Status state
+  // SEO Processed By / Status / Comments state
   const [seoProcessedByMap, setSeoProcessedByMap]   = useState<Record<number, string>>({});
   const [seoStatusMap, setSeoStatusMap]             = useState<Record<number, string>>({});
+  const [seoCommentsMap, setSeoCommentsMap]         = useState<Record<number, string>>({});
   const [seoProcessedByErrId, setSeoProcessedByErrId] = useState<number | null>(null);
 
   // Load scan codes
@@ -394,12 +396,15 @@ export default function Home() {
         setErrors(arr);
         const initPB: Record<number, string> = {};
         const initS: Record<number, string>  = {};
+        const initC: Record<number, string>  = {};
         arr.forEach((e: CannibalizationError) => {
           initPB[e.Id] = e.ProcessedBy ?? '';
           initS[e.Id]  = e.Status ?? 'Yet to check';
+          initC[e.Id]  = e.Comments ?? '';
         });
         setProcessedByMap(initPB);
         setStatusMap(initS);
+        setCommentsMap(initC);
         setProcessedByErrId(null);
       })
       .catch(console.error)
@@ -413,8 +418,8 @@ export default function Home() {
     setSelIssueType(''); setSelPriority(''); setUrlInput(''); setUrlFilter('');
     setFilterIssueTypes([]); setFilterPriorities([]);
     setErrPage(1); setSeoPage(1);
-    setProcessedByMap({}); setStatusMap({}); setProcessedByErrId(null);
-    setSeoProcessedByMap({}); setSeoStatusMap({}); setSeoProcessedByErrId(null); setModalSeoPage(null);
+    setProcessedByMap({}); setStatusMap({}); setCommentsMap({}); setProcessedByErrId(null);
+    setSeoProcessedByMap({}); setSeoStatusMap({}); setSeoCommentsMap({}); setSeoProcessedByErrId(null); setModalSeoPage(null);
     if (!code) return;
 
     // Load filter options
@@ -435,12 +440,15 @@ export default function Home() {
         setSeoInputs(arr);
         const initPB: Record<number, string> = {};
         const initS:  Record<number, string>  = {};
+        const initC:  Record<number, string>  = {};
         arr.forEach((s: PageSEOInput) => {
           initPB[s.Id] = s.ProcessedBy ?? '';
           initS[s.Id]  = s.Status ?? 'Yet to check';
+          initC[s.Id]  = s.Comments ?? '';
         });
         setSeoProcessedByMap(initPB);
         setSeoStatusMap(initS);
+        setSeoCommentsMap(initC);
       })
       .catch(console.error)
       .finally(() => setLoadingSeo(false));
@@ -493,6 +501,34 @@ export default function Home() {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: pageId, status: newStatus, processedBy: pb }),
+    }).catch(console.error);
+  }
+
+  // Save comments for cannibalization error on blur
+  async function saveErrComment(errId: number, value: string) {
+    await fetch('/api/errors', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: errId,
+        status: statusMap[errId] ?? 'Yet to check',
+        processedBy: (processedByMap[errId] ?? '').trim() || null,
+        comments: value.trim() || null,
+      }),
+    }).catch(console.error);
+  }
+
+  // Save comments for SEO input on blur
+  async function saveSeoComment(pageId: number, value: string) {
+    await fetch('/api/seo-inputs', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: pageId,
+        status: seoStatusMap[pageId] ?? 'Yet to check',
+        processedBy: (seoProcessedByMap[pageId] ?? '').trim() || null,
+        comments: value.trim() || null,
+      }),
     }).catch(console.error);
   }
 
@@ -712,6 +748,7 @@ export default function Home() {
                           <Th>Score</Th>
                           <Th className="w-44">Processed By</Th>
                           <Th className="w-36">Status</Th>
+                          <Th className="w-52">Comments</Th>
                         </tr>
                       </thead>
                       <tbody>
@@ -772,6 +809,18 @@ export default function Home() {
                                   )}
                                 </div>
                               </td>
+
+                              {/* Comments textarea */}
+                              <td className="px-4 py-3">
+                                <textarea
+                                  rows={2}
+                                  placeholder="Add comments…"
+                                  value={commentsMap[err.Id] ?? ''}
+                                  onChange={e => setCommentsMap(prev => ({ ...prev, [err.Id]: e.target.value }))}
+                                  onBlur={e => saveErrComment(err.Id, e.target.value)}
+                                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all placeholder:text-slate-300 resize-none"
+                                />
+                              </td>
                             </tr>
                           );
                         })}
@@ -806,6 +855,7 @@ export default function Home() {
                           <Th className="w-20">Words</Th>
                           <Th className="w-44">Processed By</Th>
                           <Th className="w-36">Status</Th>
+                          <Th className="w-52">Comments</Th>
                           <Th className="w-20 text-center">Detail</Th>
                         </tr>
                       </thead>
@@ -852,6 +902,18 @@ export default function Home() {
                                     <span className="text-[12px] text-red-500 whitespace-nowrap">Fill Processed By first</span>
                                   )}
                                 </div>
+                              </td>
+
+                              {/* Comments textarea */}
+                              <td className="px-4 py-3">
+                                <textarea
+                                  rows={2}
+                                  placeholder="Add comments…"
+                                  value={seoCommentsMap[page.Id] ?? ''}
+                                  onChange={e => setSeoCommentsMap(prev => ({ ...prev, [page.Id]: e.target.value }))}
+                                  onBlur={e => saveSeoComment(page.Id, e.target.value)}
+                                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all placeholder:text-slate-300 resize-none"
+                                />
                               </td>
 
                               {/* Detail popup button */}

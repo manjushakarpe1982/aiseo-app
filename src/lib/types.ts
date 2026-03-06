@@ -13,6 +13,7 @@ export interface CannibalizationError {
   CreateTS: string | null;
   Status: string | null;
   ProcessedBy: string | null;
+  Comments: string | null;
 }
 
 export interface CannibalizationFix {
@@ -50,4 +51,5 @@ export interface PageSEOInput {
   ScrapedDateTime: string | null;
   Status: string | null;
   ProcessedBy: string | null;
+  Comments: string | null;
 }

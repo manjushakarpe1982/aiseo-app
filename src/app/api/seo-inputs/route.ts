@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb, sql } from '@/lib/db';
 
 export async function PATCH(req: NextRequest) {
-  const { id, status, processedBy } = await req.json();
+  const { id, status, processedBy, comments } = await req.json();
   if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
 
   try {
@@ -11,9 +11,10 @@ export async function PATCH(req: NextRequest) {
       .input('id',          sql.Int,     id)
       .input('status',      sql.VarChar, status ?? 'Yet to check')
       .input('processedBy', sql.VarChar, processedBy ?? null)
+      .input('comments',    sql.NVarChar, comments ?? null)
       .query(`
         UPDATE AISEO_PageSEOInputs
-        SET Status = @status, ProcessedBy = @processedBy
+        SET Status = @status, ProcessedBy = @processedBy, Comments = @comments
         WHERE Id = @id
       `);
     return NextResponse.json({ success: true });
@@ -48,7 +49,7 @@ export async function GET(req: NextRequest) {
           PrimaryKeywords, SecondaryKeyword,
           WordCount, InternalLinks, ExternalLinks,
           StatusCode, SEO_Priority AS Priority, IsAddressed,
-          ScrapedDateTime, Status, ProcessedBy
+          ScrapedDateTime, Status, ProcessedBy, Comments
         FROM AISEO_PageSEOInputs
         WHERE scancode = @scanCode
         ORDER BY SEO_Priority DESC, Url
