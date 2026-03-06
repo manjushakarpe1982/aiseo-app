@@ -246,6 +246,65 @@ function FixesModal({
   );
 }
 
+// ─── SEO Detail Modal ─────────────────────────────────────────────
+function SeoModal({ page, onClose }: { page: PageSEOInput; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(15,23,42,0.5)' }}>
+      <div className="absolute inset-0" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[85vh] flex flex-col overflow-hidden">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-blue-50">
+          <div className="flex flex-wrap items-center gap-3 min-w-0">
+            <span className="font-mono text-sm font-semibold text-blue-600 truncate max-w-[420px]">{page.Url}</span>
+            {page.PageName && <span className="text-xs text-slate-500 bg-white px-2 py-0.5 rounded-full border border-slate-200">{page.PageName}</span>}
+            <StatusBadge code={page.StatusCode} />
+            {page.Priority != null && <PriorityBadge priority={page.Priority} />}
+            {page.IsAddressed && <span className="text-[12px] bg-emerald-50 text-emerald-600 border border-emerald-200 px-2 py-0.5 rounded-full font-semibold">✓ Addressed</span>}
+          </div>
+          <button
+            onClick={onClose}
+            className="ml-4 w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors text-lg font-bold flex-shrink-0"
+          >×</button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-auto">
+          <table className="w-full border-collapse min-w-[640px]">
+            <thead className="sticky top-0">
+              <tr>
+                <Th className="w-36">Field</Th>
+                <th className="text-[12px] font-bold uppercase tracking-widest text-slate-400 px-4 py-3 text-left border-b border-slate-100 bg-slate-50 w-1/2"
+                  style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Current Content</th>
+                <th className="text-[12px] font-bold uppercase tracking-widest text-emerald-500 px-4 py-3 text-left border-b border-emerald-100 bg-emerald-50 w-1/2"
+                  style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>✦ Suggested Content</th>
+              </tr>
+            </thead>
+            <tbody>
+              {SEO_FIELD_PAIRS.map(({ label, old: oldKey, sug: sugKey }) => {
+                const oldVal = page[oldKey] as string | null;
+                const sugVal = page[sugKey] as string | null;
+                if (!oldVal && !sugVal) return null;
+                return (
+                  <tr key={label} className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/50 transition-colors">
+                    <td className="px-4 py-3 align-top"><Tag variant="blue">{label}</Tag></td>
+                    <td className="px-4 py-3 text-xs text-slate-600 leading-relaxed align-top">
+                      {oldVal || <span className="text-slate-300 italic">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-emerald-600 leading-relaxed align-top font-medium bg-emerald-50/40">
+                      {sugVal || <span className="text-slate-300 italic">—</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── SEO Field pairs ──────────────────────────────────────────────
 const SEO_FIELD_PAIRS: { label: string; old: keyof PageSEOInput; sug: keyof PageSEOInput }[] = [
   { label: 'Meta Title',       old: 'MetaTitle',       sug: 'SuggestedMetaTitle' },
@@ -297,6 +356,12 @@ export default function Home() {
   const [loadingSeo, setLoadingSeo]         = useState(false);
   const [expandedId, setExpandedId]         = useState<number | null>(null);
   const [seoPage, setSeoPage]               = useState(1);
+  const [modalSeoPage, setModalSeoPage]     = useState<PageSEOInput | null>(null);
+
+  // SEO Processed By / Processed state
+  const [seoProcessedByMap, setSeoProcessedByMap]   = useState<Record<number, string>>({});
+  const [seoProcessedMap, setSeoProcessedMap]       = useState<Record<number, boolean>>({});
+  const [seoProcessedByErrId, setSeoProcessedByErrId] = useState<number | null>(null);
 
   // Load scan codes
   useEffect(() => {
@@ -338,6 +403,7 @@ export default function Home() {
     setFilterIssueTypes([]); setFilterPriorities([]);
     setErrPage(1); setSeoPage(1);
     setProcessedByMap({}); setProcessedMap({}); setProcessedByErrId(null);
+    setSeoProcessedByMap({}); setSeoProcessedMap({}); setSeoProcessedByErrId(null); setModalSeoPage(null);
     if (!code) return;
 
     // Load filter options
@@ -353,7 +419,18 @@ export default function Home() {
     setLoadingSeo(true);
     fetch(`/api/seo-inputs?scanCode=${encodeURIComponent(code)}`)
       .then(r => r.json())
-      .then(data => setSeoInputs(Array.isArray(data) ? data : []))
+      .then(data => {
+        const arr = Array.isArray(data) ? data : [];
+        setSeoInputs(arr);
+        const initPB: Record<number, string> = {};
+        const initP:  Record<number, boolean> = {};
+        arr.forEach((s: PageSEOInput) => {
+          initPB[s.Id] = s.ProcessedBy ?? '';
+          initP[s.Id]  = s.IsProcessed ?? false;
+        });
+        setSeoProcessedByMap(initPB);
+        setSeoProcessedMap(initP);
+      })
       .catch(console.error)
       .finally(() => setLoadingSeo(false));
   }
@@ -389,6 +466,22 @@ export default function Home() {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: errId, isProcessed: checked, processedBy: pb }),
+    }).catch(console.error);
+  }
+
+  // Handle Processed checkbox in SEO table
+  async function handleSeoCheckboxChange(pageId: number, checked: boolean) {
+    const pb = (seoProcessedByMap[pageId] ?? '').trim();
+    if (checked && !pb) {
+      setSeoProcessedByErrId(pageId);
+      return;
+    }
+    setSeoProcessedByErrId(null);
+    setSeoProcessedMap(prev => ({ ...prev, [pageId]: checked }));
+    await fetch('/api/seo-inputs', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: pageId, isProcessed: checked, processedBy: pb }),
     }).catch(console.error);
   }
 
@@ -684,78 +777,90 @@ export default function Home() {
         {selectedScan && activeTab === 'seo' && (
           <div className="flex flex-col gap-4 animate-fade-slide">
             <SectionTitle title="SEO Page Analysis" count={filteredSeo.length} />
-            {loadingSeo ? <Spinner /> : pagedSeo.length === 0 ? (
-              <div className="bg-white border border-slate-200 rounded-xl shadow-sm">
+            <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+              {loadingSeo ? <Spinner /> : pagedSeo.length === 0 ? (
                 <EmptyState icon="🔍" message={searchQuery ? 'No pages match your search.' : 'No SEO data found for this scan.'} />
-              </div>
-            ) : (
-              <>
-                <div className="flex flex-col gap-3">
-                  {pagedSeo.map(page => (
-                    <div key={page.Id} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-                      <button
-                        onClick={() => setExpandedId(expandedId === page.Id ? null : page.Id)}
-                        className="w-full flex items-center gap-4 px-5 py-4 hover:bg-slate-50 transition-colors text-left"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-mono text-sm text-blue-600 truncate max-w-[500px]">{page.Url}</span>
-                            {page.PageName && <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{page.PageName}</span>}
-                          </div>
-                          <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-                            <StatusBadge code={page.StatusCode} />
-                            {page.WordCount != null && <span className="text-[12px] text-slate-400 font-mono">{page.WordCount} words</span>}
-                            {page.InternalLinks != null && <span className="text-[12px] text-slate-400 font-mono">{page.InternalLinks} int. links</span>}
-                            {page.ExternalLinks != null && <span className="text-[12px] text-slate-400 font-mono">{page.ExternalLinks} ext. links</span>}
-                            {page.IsAddressed && <span className="text-[12px] bg-emerald-50 text-emerald-600 border border-emerald-200 px-2 py-0.5 rounded-full font-semibold">✓ Addressed</span>}
-                          </div>
-                        </div>
-                        <svg className={`w-4 h-4 text-slate-400 flex-shrink-0 transition-transform ${expandedId === page.Id ? 'rotate-180' : ''}`}
-                          fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </button>
-                      {expandedId === page.Id && (
-                        <div className="border-t border-slate-100 overflow-x-auto">
-                          <table className="w-full border-collapse min-w-[640px]">
-                            <thead>
-                              <tr>
-                                <Th className="w-32">Field</Th>
-                                <th className="text-[12px] font-bold uppercase tracking-widest text-slate-400 px-4 py-3 text-left border-b border-slate-100 bg-slate-50 w-1/2"
-                                  style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Current Content</th>
-                                <th className="text-[12px] font-bold uppercase tracking-widest text-emerald-500 px-4 py-3 text-left border-b border-emerald-100 bg-emerald-50 w-1/2"
-                                  style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>✦ Suggested Content</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {SEO_FIELD_PAIRS.map(({ label, old: oldKey, sug: sugKey }) => {
-                                const oldVal = page[oldKey] as string | null;
-                                const sugVal = page[sugKey] as string | null;
-                                if (!oldVal && !sugVal) return null;
-                                return (
-                                  <tr key={label} className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/50 transition-colors">
-                                    <td className="px-4 py-3 align-top"><Tag variant="blue">{label}</Tag></td>
-                                    <td className="px-4 py-3 text-xs text-slate-600 leading-relaxed align-top">
-                                      {oldVal || <span className="text-slate-300 italic">—</span>}
-                                    </td>
-                                    <td className="px-4 py-3 text-xs text-emerald-600 leading-relaxed align-top font-medium bg-emerald-50/40">
-                                      {sugVal || <span className="text-slate-300 italic">—</span>}
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+              ) : (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[1100px] border-collapse">
+                      <thead>
+                        <tr>
+                          <Th>#</Th>
+                          <Th>URL</Th>
+                          <Th>Page Name</Th>
+                          <Th className="w-20">Status</Th>
+                          <Th className="w-20">Priority</Th>
+                          <Th className="w-20">Words</Th>
+                          <Th className="w-44">Processed By</Th>
+                          <Th className="w-24 text-center">Processed</Th>
+                          <Th className="w-20 text-center">Detail</Th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pagedSeo.map((page, i) => {
+                          const rowNum = (seoPage - 1) * PAGE_SIZE + i + 1;
+                          return (
+                            <tr key={page.Id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors text-sm">
+                              <td className="px-4 py-3 text-slate-400 text-xs font-mono">{rowNum}</td>
+                              <td className="px-4 py-3 max-w-[260px]">
+                                <span className="font-mono text-[13px] text-blue-600 truncate block">{page.Url}</span>
+                              </td>
+                              <td className="px-4 py-3 text-slate-500 text-xs max-w-[160px] truncate">{page.PageName || '—'}</td>
+                              <td className="px-4 py-3"><StatusBadge code={page.StatusCode} /></td>
+                              <td className="px-4 py-3"><PriorityBadge priority={page.Priority} /></td>
+                              <td className="px-4 py-3 text-slate-400 text-xs font-mono">{page.WordCount ?? '—'}</td>
+
+                              {/* Processed By textbox */}
+                              <td className="px-4 py-3">
+                                <input
+                                  type="text"
+                                  placeholder="Enter name…"
+                                  value={seoProcessedByMap[page.Id] ?? ''}
+                                  onChange={e => {
+                                    setSeoProcessedByMap(prev => ({ ...prev, [page.Id]: e.target.value }));
+                                    if (seoProcessedByErrId === page.Id) setSeoProcessedByErrId(null);
+                                  }}
+                                  disabled={seoProcessedMap[page.Id] === true}
+                                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all placeholder:text-slate-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                                />
+                              </td>
+
+                              {/* Processed checkbox */}
+                              <td className="px-4 py-3 text-center">
+                                <div className="flex flex-col items-center gap-1">
+                                  <input
+                                    type="checkbox"
+                                    checked={seoProcessedMap[page.Id] ?? false}
+                                    onChange={e => handleSeoCheckboxChange(page.Id, e.target.checked)}
+                                    className="w-4 h-4 accent-blue-600 cursor-pointer"
+                                  />
+                                  {seoProcessedByErrId === page.Id && (
+                                    <span className="text-[12px] text-red-500 whitespace-nowrap">Fill Processed By first</span>
+                                  )}
+                                </div>
+                              </td>
+
+                              {/* Detail popup button */}
+                              <td className="px-4 py-3 text-center">
+                                <button
+                                  onClick={() => setModalSeoPage(page)}
+                                  className="px-3 py-1 text-xs font-semibold bg-blue-50 text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+                                  style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+                                >
+                                  View
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                   <Pagination page={seoPage} total={filteredSeo.length} pageSize={PAGE_SIZE} onChange={setSeoPage} />
-                </div>
-              </>
-            )}
+                </>
+              )}
+            </div>
           </div>
         )}
 
@@ -776,6 +881,14 @@ export default function Home() {
           fixes={fixes}
           loading={loadingFixes}
           onClose={() => { setModalError(null); setFixes([]); setModalFixUrl(null); }}
+        />
+      )}
+
+      {/* SEO DETAIL MODAL */}
+      {modalSeoPage && (
+        <SeoModal
+          page={modalSeoPage}
+          onClose={() => setModalSeoPage(null)}
         />
       )}
 

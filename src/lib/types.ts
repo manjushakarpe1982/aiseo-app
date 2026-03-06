@@ -48,4 +48,6 @@ export interface PageSEOInput {
   Priority: number | null;
   IsAddressed: boolean | null;
   ScrapedDateTime: string | null;
+  IsProcessed: boolean | null;
+  ProcessedBy: string | null;
 }
